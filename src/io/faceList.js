@@ -63,8 +63,8 @@ const applyOpsToCorners = (rawFaces, symOps, pointsEqFn) => {
       const index = found < 0 ? pos.length : found;
 
       if (found < 0) {
-        for (const [p, a] of applyOpsToPoint(p, index, symOps, pointsEqFn)) {
-          pos.push(p);
+        for (const [newP, a] of applyOpsToPoint(p, index, symOps, pointsEqFn)) {
+          pos.push(newP);
           action.push(a);
         }
       }
