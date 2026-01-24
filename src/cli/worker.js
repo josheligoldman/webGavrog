@@ -42,7 +42,7 @@ const makeModelCLI = (data, options) => {
   const meshes = baseMeshes.map(m => geometry(m.pos, m.faces));
   const faceLabelLists = baseMeshes.map(m => m.faces.map((_, i) => i));
 
-  const { partLists } = splitMeshes(meshes, faceLabelLists);
+  const { partLists, subMeshes } = splitMeshes(meshes, faceLabelLists);
 
   const tileScale = options.tileScale || 1.0;
   const mappedTiles = mapTiles(tiles, basis, tileScale);
@@ -51,16 +51,16 @@ const makeModelCLI = (data, options) => {
     displayList, mappedTiles, partLists, basis
   );
 
-  return instances;
+  return { instances, meshes: subMeshes };
 };
 
 module.exports = async ({ block, options, id }) => {
   const structure = cgd.processed(block);
   const data = preprocessCLI(structure, options);
   data.displayList = makeDisplayListCLI(data, options);
-  const instances = makeModelCLI(data, options);
+  const { instances, meshes } = makeModelCLI(data, options);
 
-  return { id, instances };
+  return { id, instances, meshes };
   
 };
 
