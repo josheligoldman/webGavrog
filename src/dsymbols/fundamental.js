@@ -133,11 +133,12 @@ const findGenerators = ds => {
         edge2word[D][i] = freeWords.word([gen]);
         edge2word[ds.s(i, D)][i] = freeWords.inverse([gen]);
 
-        for (const [D, i, j] of bnd.glueRecursively([[D, i]])) {
-          const w = traceWord(ds, edge2word, j, i, ds.s(i, D));
+        // FIX: Rename the inner variables so they don't shadow the outer ones
+        for (const [nextD, nextI, nextJ] of bnd.glueRecursively([[D, i]])) {
+          const w = traceWord(ds, edge2word, nextJ, nextI, ds.s(nextI, nextD));
           if (w.length > 0) {
-            edge2word[D][i] = freeWords.inverse(w);
-            edge2word[ds.s(i, D)][i] = w;
+            edge2word[nextD][nextI] = freeWords.inverse(w);
+            edge2word[ds.s(nextI, nextD)][nextI] = w;
           }
         }
       }
