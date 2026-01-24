@@ -7,6 +7,14 @@ The most recent stable version can be found at http://gavrog.org/webGavrog.
 
 To play with the source code:
 
+First install Node 14
+
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+    nvm install 14
+    nvm use 14
+
+Then clone the repository and build
+
     git clone https://github.com/odf/webGavrog.git
     npm install
     npm run build-dev
