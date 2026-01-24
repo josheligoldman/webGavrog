@@ -18,62 +18,15 @@ const {
   coordinateChangesQ: opsQ,
   coordinateChangesF: opsF
 } = require('./src/geometry/types.js');
+const { makeTileDisplayList } = require('./src/ui/makeScene.js');
+const { handlers } = require('./src/ui/handlers.js');
+const { convertTile } = require('./src/ui/makeScene.js');
 
 const options = {
   "xExtent3d": 1,
   "yExtent3d": 1,
   "zExtent3d": 1,
   "tileScale": 1
-};
-
-const handlers = {
-  identifyGroupForNet(graph) {
-    const syms = netSyms.symmetries(graph).symmetries;
-    const symOps = netSyms.affineSymmetries(graph, syms);
-    return identifySpacegroup(symOps);
-  },
-
-  identifyGroupForTiling({ ds, cov, skel }) {
-    const symOps = tilings.affineSymmetries(ds, cov, skel);
-    return identifySpacegroup(symOps);
-  },
-
-  embedding(graph) {
-    return embed(graph);
-  },
-
-  dsCover(ds) {
-    return tilings.makeCover(ds);
-  },
-
-  skeleton(cov) {
-    return tilings.skeleton(cov);
-  },
-
-  tilesByTranslations({ ds, cov, skel }) {
-    return tilings.tilesByTranslations(ds, cov, skel);
-  },
-};
-
-const convertTile = (tile, centers) => {
-  const basis = opsQ.transposed(opsQ.linearPart(tile.symmetry));
-  const shift = opsQ.shiftPart(tile.symmetry);
-  const center = opsQ.plus(opsQ.times(centers[tile.classIndex], basis), shift);
-
-  if (shift.length == 2) {
-    for (const v of basis)
-      v.push(0);
-    basis.push([0, 0, 1]);
-    shift.push(0);
-    center.push(0);
-  }
-
-  const transform = { basis: opsQ.toJS(basis), shift: opsQ.toJS(shift) };
-  const classIndex = tile.classIndex;
-  const itemType = 'tile';
-  const neighbors = tile.neighbors.map(n => Object.assign({}, n, { itemType }));
-
-  return { classIndex, transform, center, neighbors };
 };
 
 try {
@@ -95,6 +48,7 @@ try {
     const sgInfo = handlers.identifyGroupForTiling({ ds, cov, skel });
     const tiles = rawTiles.map(tile => convertTile(tile, centers));
     const embeddings = handlers.embedding(skel.graph);
+    // const result = makeTileDisplayList({ tiles, dim, sgInfo: { toStd } }, options);
 
     console.log("\n--- Output ---");
     console.log("SKELETON:", JSON.stringify(skel, null, 2));

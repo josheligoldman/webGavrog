@@ -327,7 +327,7 @@ const preprocessTiling = (
 });
 
 
-const convertTile = (tile, centers) => {
+export const convertTile = (tile, centers) => {
   const basis = opsQ.transposed(opsQ.linearPart(tile.symmetry));
   const shift = opsQ.shiftPart(tile.symmetry);
   const center = opsQ.plus(opsQ.times(centers[tile.classIndex], basis), shift);
@@ -349,7 +349,7 @@ const convertTile = (tile, centers) => {
 };
 
 
-const makeTileDisplayList = ({ tiles, dim, sgInfo: { toStd } }, options) => {
+export const makeTileDisplayList = ({ tiles, dim, sgInfo: { toStd } }, options) => {
   const shifts = baseShifts(dim, options);
   const centering = centeringLatticePoints(toStd);
   const fromStd = opsQ.inverse(toStd);
