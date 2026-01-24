@@ -1,9 +1,10 @@
 // src/ui/handlers.js
 import * as tilings from '../dsymbols/tilings';
-import * as delaney from '../dsymbols/delaney';
-import * as delaney3d from '../dsymbols/delaney3d';
 import * as netSyms from '../pgraphs/symmetries';
 import * as cgd from '../io/cgd';
+import * as surface from './surface';
+
+import { coordinateChangesF as opsF } from '../geometry/types';
 import { embed } from '../pgraphs/embedding';
 import { identifySpacegroup } from '../spacegroups/spacegroupFinder';
 
@@ -24,10 +25,6 @@ export const handlers = {
   },
 
   dsCover(ds) {
-    const dim = delaney.dim(ds);
-    if (dim === 3) {
-      return delaney3d.pseudoToroidalCover(ds);
-    }
     return tilings.makeCover(ds);
   },
 
@@ -37,6 +34,47 @@ export const handlers = {
 
   tilesByTranslations({ ds, cov, skel }) {
     return tilings.tilesByTranslations(ds, cov, skel);
+  },
+
+  makeTileMeshes({ cov, skel, pos, seeds, basis, subDLevel }) {
+    const templates = [];
+    for (const surf of tilings.tileSurfaces(cov, skel, pos, seeds))
+      templates.push({
+        pos: surf.pos.map(v => opsF.times(v, basis)),
+        faces: surf.faces,
+        isFixed: surf.pos.map(_ => true)
+      });
+
+    const scale = 2.0 * surface.averageRadius(templates);
+
+    const meshes = [];
+    for (const template of templates) {
+      let t = template;
+
+      for (let i = 0; i < subDLevel; ++i) {
+        t = surface.subD(t);
+        t = surface.tightened(t);
+      }
+
+      meshes.push(t);
+    }
+
+    return { meshes, scale };
+  },
+
+  bevelMeshes({ meshes, edgeWidth }) {
+    const result = [];
+    for (const mesh of meshes) {
+      let t = mesh;
+
+      t = surface.insetAt(t, 0.05 * edgeWidth, mesh.isFixed);
+      t = surface.beveledAt(t, 0.02 * edgeWidth, mesh.isFixed);
+      t = surface.tightened(t);
+
+      result.push(t);
+    }
+
+    return result;
   },
 
   parseCGD(data) {

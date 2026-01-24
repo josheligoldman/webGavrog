@@ -1,3 +1,4 @@
+// src/ui/sceneWorker.js
 import '@babel/polyfill';
 
 import * as pickler from '../common/pickler';
@@ -13,6 +14,7 @@ onmessage = event => {
   let output, status;
 
   try {
+    console.log(`Worker received command: ${cmd}`);
     output = handlers[cmd](val, log);
     status = 'success';
   } catch (ex) {

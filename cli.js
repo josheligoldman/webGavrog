@@ -9,18 +9,29 @@ require('@babel/register')({
 const fs = require('fs');
 
 const cgd = require('./src/io/cgd.js');
-const tilings = require('./src/dsymbols/tilings.js');
 const delaney = require('./src/dsymbols/delaney.js');
-const delaney3d = require('./src/dsymbols/delaney3d.js');
-const { identifySpacegroup } = require('./src/spacegroups/spacegroupFinder.js');
-const { embed } = require('./src/pgraphs/embedding.js');
-const {
-  coordinateChangesQ: opsQ,
-  coordinateChangesF: opsF
-} = require('./src/geometry/types.js');
-const { makeTileDisplayList } = require('./src/ui/makeScene.js');
 const { handlers } = require('./src/ui/handlers.js');
 const { convertTile } = require('./src/ui/makeScene.js');
+const { makeTileDisplayList } = require('./src/ui/makeScene.js');
+
+const preprocess = (structure, options) => {
+  const type = structure.type;
+  const ds = structure.symbol;
+  const dim = delaney.dim(ds);
+
+  const cov = handlers.dsCover(ds);
+  const skel = handlers.skeleton(cov);
+  const { orbitReps, centers, tiles: rawTiles } = handlers.tilesByTranslations({ ds, cov, skel });
+  const sgInfo = handlers.identifyGroupForTiling({ ds, cov, skel });
+  const tiles = rawTiles.map(tile => convertTile(tile, centers));
+  const embeddings = handlers.embedding(skel.graph);
+  return { type, dim, ds, cov, skel, sgInfo, tiles, orbitReps, embeddings };
+};
+
+const makeDisplayList = (data, options) => {
+  const result = makeTileDisplayList(data, options);
+  return result;
+};
 
 const options = {
   "xExtent3d": 1,
@@ -37,25 +48,13 @@ try {
     console.log(`\n=== Processing Structure: ${i} ===`);
 
     const structure = cgd.processed(block);
+    data = preprocess(structure, options);
+    result = makeDisplayList(data, options);
 
-    const type = structure.type;
-    const ds = structure.symbol;
-    const dim = delaney.dim(ds);
-
-    const cov = handlers.dsCover(ds);
-    const skel = handlers.skeleton(cov);
-    const { orbitReps, centers, tiles: rawTiles } = handlers.tilesByTranslations({ ds, cov, skel });
-    const sgInfo = handlers.identifyGroupForTiling({ ds, cov, skel });
-    const tiles = rawTiles.map(tile => convertTile(tile, centers));
-    const embeddings = handlers.embedding(skel.graph);
-    // const result = makeTileDisplayList({ tiles, dim, sgInfo: { toStd } }, options);
-
-    console.log("\n--- Output ---");
-    console.log("SKELETON:", JSON.stringify(skel, null, 2));
-    console.log("TILES BY TRANSLATIONS:", JSON.stringify({ orbitReps, centers, rawTiles }, null, 2));
-    console.log("SPACEGROUP IDENTIFICATION:", JSON.stringify(sgInfo, null, 2));
-    console.log("TILES:", JSON.stringify(tiles, null, 2));
-    console.log("EMBEDDING:", JSON.stringify(embeddings, null, 2));
+    console.log("RESULT:", JSON.stringify(result, null, 2));
+    console.log("STRUCTURE:", JSON.stringify(structure, null, 2));
+    console.log("DATA:", JSON.stringify(data, null, 2));
+    console.log("RESULT:", JSON.stringify(result, null, 2));
     console.log("\n=== End of Structure ===\n");
 
     i++;
