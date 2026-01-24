@@ -15,6 +15,7 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
+    "cli-progress": "^3.12.0",
     "md5": "^2.3.0",
     "plexus-csp": "^0.2.2"
   },

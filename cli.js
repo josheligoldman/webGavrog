@@ -7,6 +7,7 @@ require('@babel/register')({
 });
 
 const fs = require('fs');
+const cliProgress = require('cli-progress');
 
 const cgd = require('./src/io/cgd.js');
 const delaney = require('./src/dsymbols/delaney.js');
@@ -43,23 +44,28 @@ const options = {
 try {
   const input = fs.readFileSync(0, 'utf-8');
 
-  let i = 0;
-  for (const block of cgd.blocks(input)) {
-    console.log(`\n=== Processing Structure: ${i} ===`);
+  const allBlocks = [...cgd.blocks(input)];
 
+  const progressBar = new cliProgress.SingleBar({
+    format: 'Progress |{bar}| {percentage}% | {value}/{total} Structures | ETA: {eta}s',
+    hideCursor: true
+  }, cliProgress.Presets.shades_classic);
+  progressBar.start(allBlocks.length, 0);
+
+  const finalResults = [];
+
+  allBlocks.forEach((block, i) => {
     const structure = cgd.processed(block);
-    data = preprocess(structure, options);
-    result = makeDisplayList(data, options);
+    const data = preprocess(structure, options);
+    const result = makeDisplayList(data, options);
 
-    console.log("RESULT:", JSON.stringify(result, null, 2));
-    console.log("STRUCTURE:", JSON.stringify(structure, null, 2));
-    console.log("DATA:", JSON.stringify(data, null, 2));
-    console.log("RESULT:", JSON.stringify(result, null, 2));
-    console.log("\n=== End of Structure ===\n");
+    finalResults.push({ id: i, result, structure, data });
+    progressBar.update(i + 1);
+  });
 
-    i++;
-  }
+  progressBar.stop();
 
+  console.log(`\nSuccessfully processed ${allBlocks.length} structures.`);
 } catch (error) {
   console.error("Pipeline Error:", error);
   process.exit(1);
