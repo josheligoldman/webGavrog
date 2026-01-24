@@ -16,7 +16,7 @@ const preprocess = (structure, options) => {
   const ds = structure.symbol;
   const dim = delaney.dim(ds);
 
-  const cov = handlers.dsCover(ds);
+  const cov = structure.cover || handlers.dsCover(ds);
   const skel = handlers.skeleton(cov);
   const { orbitReps, centers, tiles: rawTiles } = handlers.tilesByTranslations({ ds, cov, skel });
   const sgInfo = handlers.identifyGroupForTiling({ ds, cov, skel });
@@ -34,7 +34,8 @@ module.exports = async ({ block, options, id }) => {
   const structure = cgd.processed(block);
   const data = preprocess(structure, options);
   const result = makeDisplayList(data, options);
+
+  return { id, result, structure, data};
   
-  return { id, result, structure, data };
 };
 

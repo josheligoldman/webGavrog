@@ -38,17 +38,19 @@ async function run() {
 
     const runTaskWithTimeout = async (block, index) => {
       const globalId = index;
-      
-      const workerPromise = piscina.runTask({ block, options: OPTIONS, id: globalId });
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('TIMEOUT')), TIMEOUT_MS)
-      );
+      let timer = null;
 
       try {
+        const timeoutPromise = new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            reject(new Error('TIMEOUT'));
+          }, TIMEOUT_MS);
+        });
+
+        const workerPromise = piscina.runTask({ block, options: OPTIONS, id: globalId });
+
         const res = await Promise.race([workerPromise, timeoutPromise]);
         
-        // outputStream.write(JSON.stringify(res) + '\n');
         return res;
 
       } catch (err) {
@@ -58,6 +60,7 @@ async function run() {
         return errorLog;
 
       } finally {
+        if (timer) clearTimeout(timer);
         progressBar.increment({ failures });
       }
     };
@@ -70,7 +73,6 @@ async function run() {
     await new Promise((resolve) => outputStream.end(resolve));
 
     console.log(`\nFinished! Results saved to output.jsonl`);
-    process.exit(0);
 
   } catch (error) {
     console.error("Critical Failure:", error);
