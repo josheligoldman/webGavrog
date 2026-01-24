@@ -16,37 +16,30 @@ const parseCgdBlock = text => {
 export const structures = [
 
   parseCgdBlock(`
-PERIODIC_GRAPH
-  NAME bcu-net
-  EDGES
-      1   1     1 -1 -1
-      1   1     1 -1  0
-      1   1     1  0 -1
-      1   1     1  0  0
+TILING
+NAME "dia"
+GROUP Fd-3m
+FACES 6
+0.12500 0.12500 0.12500 
+-0.12500 0.37500 0.37500 
+-0.37500 0.12500 0.62500 
+-0.12500 -0.12500 0.87500 
+0.12500 -0.37500 0.62500 
+0.37500 -0.12500 0.37500 
 END
     `),
-
-  {
-    name: 'bcu',
-    type: 'tiling',
-    symbol: delaney.parse('<1.1:2 3:2,1 2,1 2,2:4,4 2,6>')
-  },
 
   parseCgdBlock(`
-PERIODIC_GRAPH
-  NAME pcu-net
-  EDGES
-      1   1     0  0  1
-      1   1     0  1  0
-      1   1     1  0  0
+TILING
+NAME "pcu"
+GROUP Pm-3m
+FACES 4
+0.00000 0.00000 0.00000 
+0.00000 1.00000 0.00000 
+1.00000 1.00000 0.00000 
+1.00000 0.00000 0.00000 
 END
     `),
-
-  {
-    name: 'pcu',
-    type: 'tiling',
-    symbol: delaney.parse('<1.1:1 3:1,1,1,1:4,3,4>')
-  },
 
   parseCgdBlock(`
 PERIODIC_GRAPH

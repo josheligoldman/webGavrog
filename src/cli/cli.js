@@ -1,4 +1,4 @@
-// cli_parallel.js
+// cli.js
 require('@babel/register')({
   presets: [['@babel/preset-env', { targets: { node: '14' } }]],
   ignore: [/node_modules/],
@@ -34,7 +34,8 @@ async function run() {
     let failures = 0;
     progressBar.start(total, 0, { failures: 0 });
 
-    const outputStream = fs.createWriteStream('output.jsonl');
+    const outputStream = fs.createWriteStream('data/output/output.jsonl');
+    const errorStream = fs.createWriteStream('data/output/errors.jsonl');
 
     const runTaskWithTimeout = async (block, index) => {
       const globalId = index;
@@ -51,12 +52,14 @@ async function run() {
 
         const res = await Promise.race([workerPromise, timeoutPromise]);
         
+        outputStream.write(JSON.stringify(res) + '\n');
+
         return res;
 
       } catch (err) {
         failures++;
         const errorLog = { id: globalId, error: err.message, success: false };
-        outputStream.write(JSON.stringify(errorLog) + '\n');
+        errorStream.write(JSON.stringify(errorLog) + '\n');
         return errorLog;
 
       } finally {

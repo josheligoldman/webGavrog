@@ -38,9 +38,9 @@ const cartesian = (...vs) => (
 
 const baseShifts = (dim, options) => dim == 3 ?
   cartesian(
-    centeredRange(options.xExtent3d || 2),
-    centeredRange(options.yExtent3d || 2),
-    centeredRange(options.zExtent3d || 2)
+    centeredRange(options.xExtent3d || 1),
+    centeredRange(options.yExtent3d || 1),
+    centeredRange(options.zExtent3d || 1)
   )
   :
   cartesian(
@@ -378,8 +378,7 @@ export const makeTileDisplayList = ({ tiles, dim, sgInfo: { toStd } }, options) 
   return result;
 };
 
-
-const makeTilingModel = (data, options, runJob, log) => csp.go(function* () {
+export const makeTilingModelGeo = (data, options) => {
   const { ds, cov, skel, tiles, orbitReps, embeddings, displayList } = data;
   const dim = delaney.dim(ds);
   const embedding = pickEmbedding(embeddings, options);
@@ -390,6 +389,14 @@ const makeTilingModel = (data, options, runJob, log) => csp.go(function* () {
     basis[1].push(0);
     basis.push([0, 0, 1]);
   }
+
+  return { dim, embedding, basis };
+};
+
+const makeTilingModel = (data, options, runJob, log) => csp.go(function* () {
+  const { ds, cov, skel, tiles, orbitReps, embeddings, displayList } = data;
+
+  const { dim, embedding, basis } = makeTilingModelGeo(data, options);
 
   const subDLevel = dim == 3 ? options.extraSmooth ? 4 : 3 : 1;
   const edgeWidth = withDefault(
@@ -429,7 +436,7 @@ const makeTilingModel = (data, options, runJob, log) => csp.go(function* () {
 
   const scale = dim == 2 ?
     withDefault(options.tileScale2d, 1.00) :
-    Math.min(0.999, withDefault(options.tileScale, 0.85));
+    Math.min(0.999, withDefault(options.tileScale, 1.0));
 
   const mappedTiles = mapTiles(tiles, basis, scale);
   const instances = makeTileInstances(
@@ -440,7 +447,7 @@ const makeTilingModel = (data, options, runJob, log) => csp.go(function* () {
 });
 
 
-const mapTiles = (tiles, basis, scale) => {
+export const mapTiles = (tiles, basis, scale) => {
   const invBasis = opsF.inverse(basis);
   const b1 = opsF.times(scale, basis);
   const b2 = opsF.times(1.0 - scale, basis);
@@ -460,7 +467,7 @@ const mapTiles = (tiles, basis, scale) => {
 };
 
 
-const makeTileInstances = (displayList, tiles, partLists, basis) => {
+export const makeTileInstances = (displayList, tiles, partLists, basis) => {
   const instances = [];
 
   for (let i = 0; i < displayList.length; ++i) {

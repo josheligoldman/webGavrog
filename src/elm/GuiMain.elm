@@ -357,9 +357,9 @@ init flags =
             { showUnitCell = False
             , xExtent2d = 5
             , yExtent2d = 5
-            , xExtent3d = 2
-            , yExtent3d = 2
-            , zExtent3d = 2
+            , xExtent3d = 1
+            , yExtent3d = 1
+            , zExtent3d = 1
             }
       , netSettings =
             { vertexRadius = 0.1
@@ -380,7 +380,7 @@ init flags =
                 }
             }
       , tilingSettings =
-            { tileScale = 0.85
+            { tileScale = 1.0
             , editEdgeColor = False
             , edgeColor =
                 { hue = 0.0
