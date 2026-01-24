@@ -7,6 +7,9 @@
     "url": "https://github.com/odf/webGavrog"
   },
   "main": "index.js",
+  "engines": {
+    "node": "14.21.3"
+  },
   "scripts": {
     "build": "webpack --mode production",
     "build-dev": "webpack --mode development --debug --devtool cheap-module-source-map --output-pathinfo",
@@ -19,7 +22,8 @@
     "md5": "^2.3.0",
     "p-map": "^4.0.0",
     "piscina": "^3.2.0",
-    "plexus-csp": "^0.2.2"
+    "plexus-csp": "^0.2.2",
+    "yargs": "^16.2.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.12.10",
