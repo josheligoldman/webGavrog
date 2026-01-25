@@ -56,11 +56,19 @@ const makeModelCLI = (data, options) => {
 
 module.exports = async ({ block, options, id }) => {
   const structure = cgd.processed(block);
+  if (!structure) {
+    throw new Error(`Structure ${id} failed to parse (returned null/undefined)`);
+  }
+  if (!structure.name) {
+    throw new Error(`Structure ${id} is missing a name property`);
+  };
+  const name = structure.name
+
   const data = preprocessCLI(structure, options);
   data.displayList = makeDisplayListCLI(data, options);
   const { instances, meshes } = makeModelCLI(data, options);
 
-  return { id, instances, meshes };
+  return { name, instances, meshes };
   
 };
 

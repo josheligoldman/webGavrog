@@ -19,7 +19,7 @@ const argv = yargs(hideBin(process.argv))
   .option('input', {
     alias: 'i',
     type: 'string',
-    description: 'The .cgd file to process',
+    description: 'The .cgd file or directory to process',
     demandOption: true
   })
   .option('output', {
