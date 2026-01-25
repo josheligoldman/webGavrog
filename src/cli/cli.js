@@ -246,13 +246,8 @@ function setupDirectories(inputPath, outputPath, errorFilePath) {
 function getOutputPathForFile(currentFile, mainOutputPath, isInputDir, isOutputDir) {
     if (isInputDir || isOutputDir) {
         const inputFileName = path.basename(currentFile).trim();
-        const inputFileNameNoExt = inputFileName.replace(/3dt\.cgd$/i, '');
-        console.log(`file name no ext: ${inputFileNameNoExt}`);
-        // If inputFileNameNoExt doesn't end with _, append _
-        if (!inputFileNameNoExt.endsWith('_')) {
-            inputFileNameNoExt += '_';
-        }
-        const outName = `${inputFileNameNoExt}output.jsonl`;
+        const inputFileNameNoExt = inputFileName.replace(/[._-]?3dt\.cgd$/i, '');
+        const outName = `${inputFileNameNoExt}.jsonl`;
         return path.join(mainOutputPath, outName);
     } else {
         // Mode: Single file input -> Single file output
