@@ -1,4 +1,5 @@
 // cli.js
+// TODO: If output file exists, read and skip already done IDs. Then rerun with much larger timeout. 
 require('@babel/register')({
   presets: [['@babel/preset-env', { targets: { node: '14' } }]],
   ignore: [/node_modules/],
@@ -95,7 +96,14 @@ async function run() {
     let totalErrors = 0;
     let totalTimeouts = 0;
 
-    console.log(`Starting processing with ${argv.threads} threads...`);
+    // Initial Report
+    console.log(`\n=============================================`);
+    console.log("Input Path:", argv.input);
+    console.log("Output Path:", argv.output);
+    console.log("Error Log Path:", argv.errors);
+    console.log("Threads:", argv.threads);
+    console.log("Timeout per structure (ms):", argv.timeout);
+    console.log(`=============================================\n`);
 
     // Create GLOBAL Error Stream (One file for everything)
     const errorStream = fs.createWriteStream(argv.errors);
