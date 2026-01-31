@@ -51,16 +51,14 @@ const argv = yargs(hideBin(process.argv))
     default: 'error_dir'
   })
   .option('threads', {
-    alias: 't',
     type: 'number',
     description: 'Number of worker threads',
     default: 1
   })
   .option('timeout', {
-    alias: 'ms',
     type: 'number',
     description: 'Timeout per structure in milliseconds',
-    default: 10000
+    default: 15000
   })
   .help()
   .argv;
