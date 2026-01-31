@@ -48,10 +48,10 @@ const makeModelCLI = (data, options) => {
   const mappedTiles = mapTiles(tiles, basis, tileScale);
 
   const instances = makeTileInstances(
-    displayList, mappedTiles, partLists, basis
+    displayList, mappedTiles, partLists, basis, false /* existEdges */
   );
 
-  return { instances, meshes: subMeshes };
+  return { basis, instances, meshes: subMeshes };
 };
 
 module.exports = async ({ block, options, id }) => {
@@ -66,9 +66,9 @@ module.exports = async ({ block, options, id }) => {
 
   const data = preprocessCLI(structure, options);
   data.displayList = makeDisplayListCLI(data, options);
-  const { instances, meshes } = makeModelCLI(data, options);
+  const { basis, instances, meshes } = makeModelCLI(data, options);
 
-  return { name, instances, meshes };
+  return { name, basis, instances, meshes };
   
 };
 
