@@ -1,5 +1,4 @@
 // cli.js
-// TODO: If output file exists, read and skip already done IDs. Then rerun with much larger timeout. 
 require('@babel/register')({
   presets: [['@babel/preset-env', { targets: { node: '14' } }]],
   ignore: [/node_modules/],
@@ -42,14 +41,14 @@ const argv = yargs(hideBin(process.argv))
   .option('output', {
     alias: 'o',
     type: 'string',
-    description: 'Path to output file (if single input) or directory',
-    default: 'output'
+    description: 'Path to Output Directory',
+    default: 'output_dir'
   })
   .option('errors', {
     alias: 'e',
     type: 'string',
-    description: 'Path to single error JSONL file (must end in .jsonl)',
-    default: 'errors.jsonl'
+    description: 'Path to Error Directory',
+    default: 'error_dir'
   })
   .option('threads', {
     alias: 't',
@@ -84,11 +83,8 @@ async function run() {
 
   try {
     // Analyze & Setup Directories
-    const { isInputDir, isOutputDir } = setupDirectories(argv.input, argv.output, argv.errors);
-
-    // Get Files List
-    const filesToProcess = getFilesToProcess(argv.input);
-    console.log(`Found ${filesToProcess.length} file(s) to process.`);
+    // This enforces that output/errors are dirs and all paths are unique
+    setupDirectories(argv.input, argv.output, argv.errors);
 
     // Initialize global counters
     let globalIdCounter = 0;
@@ -98,15 +94,16 @@ async function run() {
 
     // Initial Report
     console.log(`\n=============================================`);
-    console.log("Input Path:", argv.input);
-    console.log("Output Path:", argv.output);
-    console.log("Error Log Path:", argv.errors);
-    console.log("Threads:", argv.threads);
-    console.log("Timeout per structure (ms):", argv.timeout);
+    console.log("Input Path:      ", argv.input);
+    console.log("Output Directory:", argv.output);
+    console.log("Error Directory: ", argv.errors);
+    console.log("Threads:         ", argv.threads);
+    console.log("Timeout (ms):    ", argv.timeout);
     console.log(`=============================================\n`);
 
-    // Create GLOBAL Error Stream (One file for everything)
-    const errorStream = fs.createWriteStream(argv.errors);
+    // Get Files List
+    const filesToProcess = getFilesToProcess(argv.input);
+    console.log(`Found ${filesToProcess.length} file(s) to process.`);
 
     // Process Loop
     for (let i = 0; i < filesToProcess.length; i++) {
@@ -116,19 +113,22 @@ async function run() {
 
       console.log(`---------------------------------------------`);
 
-      // Determine specific OUTPUT path for this file
-      const currentOutputPath = getOutputPathForFile(
-          currentFile, 
-          argv.output, 
-          isInputDir, 
-          isOutputDir
-      );
+      // Determine Filenames
+      // We need a clean filename (fname) to use for both output and error files
+      const inputBaseName = path.basename(currentFile).trim();
+      // Removes .3dt.cgd or .cgd or .3dt etc, adjusts regex as needed for your specific naming convention
+      const fname = inputBaseName.replace(/[._-]?3dt\.cgd$/i, ''); 
+      
+      const currentOutputPath = path.join(argv.output, `${fname}.jsonl`);
+      const currentErrorPath = path.join(argv.errors, `${fname}.jsonl`);
 
-      console.log(`Processing file ${fileNum} of ${fileCount}: ${currentFile}.`);
-      console.log(`Writing output to ${currentOutputPath}.`);
+      console.log(`Processing file ${fileNum} of ${fileCount}: ${inputBaseName}`);
+      console.log(`   > Output: ${currentOutputPath}`);
+      console.log(`   > Error:  ${currentErrorPath}`);
 
-      // Create stream for THIS output file
+      // Create Streams (One pair per input file)
       const outputStream = fs.createWriteStream(currentOutputPath);
+      const errorStream = fs.createWriteStream(currentErrorPath);
 
       const result = await processSingleFile(
         currentFile, 
@@ -136,11 +136,12 @@ async function run() {
         fileCount, 
         globalIdCounter, 
         outputStream, 
-        errorStream // Pass the shared error stream
+        errorStream 
       );
 
-      // Close output stream immediately
+      // Close streams immediately after file is done
       await new Promise(r => outputStream.end(r));
+      await new Promise(r => errorStream.end(r));
 
       // Aggregate results
       globalIdCounter += result.processed;
@@ -149,9 +150,8 @@ async function run() {
       totalTimeouts += result.timeouts;
     }
 
-    // Cleanup & Close Global Error Stream
+    // Cleanup Worker Pool
     await piscina.destroy();
-    await new Promise(r => errorStream.end(r));
 
     const jobEndTime = Date.now();
     const durationSeconds = (jobEndTime - jobStartTime) / 1000;
@@ -165,8 +165,8 @@ async function run() {
     console.log(`Total Success:    ${totalSuccess}`);
     console.log(`Total Errors:     ${totalErrors}`);
     console.log(`Total Timeouts:   ${totalTimeouts}`);
-    console.log(`Output Location:  ${argv.output}`);
-    console.log(`Error Log:        ${argv.errors}`);
+    console.log(`Output Dir:       ${argv.output}`);
+    console.log(`Error Dir:        ${argv.errors}`);
     console.log(`=============================================`);
 
   } catch (error) {
@@ -176,91 +176,65 @@ async function run() {
 }
 
 // ---------------------------------------------------------
-// HELPER: Ensure Directory Exists
+// HELPER: Ensure Directory Exists (Recursive)
 // ---------------------------------------------------------
 const ensureDir = (dirPath) => {
-  if (!fs.existsSync(dirPath)) { // Create directory if it doesn't exist
+  if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
-  } else if (!fs.statSync(dirPath).isDirectory()) { // Exists but is not a directory, throw error
-      console.error(`Error: Cannot create directory "${dirPath}" because a file with that name already exists.`);
+  } else if (!fs.statSync(dirPath).isDirectory()) {
+      console.error(`Error: Path "${dirPath}" exists but is not a directory.`);
       process.exit(1);
   }
-  // Directory exists, nothing to do
 };
 
 // ---------------------------------------------------------
-// HELPER: Setup Directories
+// HELPER: Setup and Validate Directories
 // ---------------------------------------------------------
-function setupDirectories(inputPath, outputPath, errorFilePath) {
+function setupDirectories(inputPath, outputDir, errorDir) {
     if (!fs.existsSync(inputPath)) {
-        console.error(`Error: Path not found at ${inputPath}`);
+        console.error(`Error: Input path not found at ${inputPath}`);
         process.exit(1);
     }
-    const inputStats = fs.statSync(inputPath);
-    const isInputDir = inputStats.isDirectory();
-    let isOutputDir = false;
 
-    // --- OUTPUT LOGIC ---
-    // Logic: If input is Dir, output MUST be Dir.
-    if (isInputDir) {
-        if (fs.existsSync(outputPath) && !fs.statSync(outputPath).isDirectory()) {
-            console.error(`Error: Input is a directory, so Output must be a directory. Found existing file at: ${outputPath}`);
-            process.exit(1);
-        }
-        isOutputDir = true;
+    // Resolve Input Directory Context
+    // If input is a file, we check against its parent dir. If it's a dir, we check against itself.
+    const inputStats = fs.statSync(inputPath);
+    let inputContextDir;
+    if (inputStats.isDirectory()) {
+        inputContextDir = path.resolve(inputPath);
     } else {
-        // Input is File. Determine if output is intended as Directory or File.
-        // If it exists and is a directory -> Directory Mode
-        if (fs.existsSync(outputPath) && fs.statSync(outputPath).isDirectory()) {
-            isOutputDir = true;
-        } 
-        // If it has NO extension -> Directory Mode (User likely meant a folder)
-        else if (path.extname(outputPath) === '') {
-            isOutputDir = true;
-        }
-        // If it HAS an extension, strictly enforce .jsonl -> File Mode
-        else {
-            if (!outputPath.endsWith('.jsonl')) {
-                console.error(`Error: Output file must end with .jsonl. Given: ${outputPath}`);
+        inputContextDir = path.resolve(path.dirname(inputPath));
+    }
+
+    // Resolve Output and Error Dirs
+    const absOutputDir = path.resolve(outputDir);
+    const absErrorDir = path.resolve(errorDir);
+
+    // Strict Uniqueness Check
+    const pathsToCheck = [
+        { label: 'Input Context',    path: inputContextDir },
+        { label: 'Output Directory', path: absOutputDir },
+        { label: 'Error Directory',  path: absErrorDir }
+    ];
+
+    // Compare every pair to ensure they are unique
+    for (let i = 0; i < pathsToCheck.length; i++) {
+        for (let j = i + 1; j < pathsToCheck.length; j++) {
+            const a = pathsToCheck[i];
+            const b = pathsToCheck[j];
+
+            if (a.path === b.path) {
+                console.error(`Error: ${a.label} and ${b.label} must be different.`);
+                console.error(`   ${a.label}: ${a.path}`);
+                console.error(`   ${b.label}: ${b.path}`);
                 process.exit(1);
             }
-            isOutputDir = false;
         }
     }
 
-    // Create Output Directories
-    if (isInputDir || isOutputDir) {
-        ensureDir(outputPath);
-    } else {
-        const outDir = path.dirname(outputPath);
-        if (outDir !== '.') ensureDir(outDir);
-    }
-
-    // --- ERROR LOGIC ---
-    // argv.errors is strict: IT IS A FILE that must end in .jsonl. We only ensure the parent dir exists.
-    if (!errorFilePath.endsWith('.jsonl')) {
-        console.error(`Error: --errors argument must be a file path ending in .jsonl. Given: ${errorFilePath}`);
-        process.exit(1);
-    }
-    const errorParentDir = path.dirname(errorFilePath);
-    if (errorParentDir !== '.') ensureDir(errorParentDir);
-
-    return { isInputDir, isOutputDir };
-}
-
-// ---------------------------------------------------------
-// HELPER: Determine Output Path
-// ---------------------------------------------------------
-function getOutputPathForFile(currentFile, mainOutputPath, isInputDir, isOutputDir) {
-    if (isInputDir || isOutputDir) {
-        const inputFileName = path.basename(currentFile).trim();
-        const inputFileNameNoExt = inputFileName.replace(/[._-]?3dt\.cgd$/i, '');
-        const outName = `${inputFileNameNoExt}.jsonl`;
-        return path.join(mainOutputPath, outName);
-    } else {
-        // Mode: Single file input -> Single file output
-        return mainOutputPath;
-    }
+    // Ensure Directories Exist
+    ensureDir(absOutputDir);
+    ensureDir(absErrorDir);
 }
 
 // ---------------------------------------------------------
@@ -281,6 +255,7 @@ function getFilesToProcess(inputPath) {
     }
     return validFiles;
   } else {
+    // Strict extension check for single file input
     if (!inputPath.endsWith('3dt.cgd')) {
       console.error(`Error: Input file must end with "3dt.cgd". Given: ${inputPath}`);
       process.exit(1);

@@ -9,4 +9,4 @@ LOG_FILE="data/zeolites.log"
 # Make the parent of the log file
 mkdir -p $(dirname $LOG_FILE)
 
-node src/cli/cli.js -i $DATA_DIR -o $OUTPUT_DIR -e $ERROR_DIR -t $THREADS -ms $TIMEOUT > $LOG_FILE
+node src/cli/cli.js -i $DATA_DIR -o $OUTPUT_DIR -e $ERROR_DIR -t $THREADS -ms $TIMEOUT # > $LOG_FILE
