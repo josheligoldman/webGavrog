@@ -440,9 +440,9 @@ const makeTilingModel = (data, options, runJob, log) => csp.go(function* () {
 
   const mappedTiles = mapTiles(tiles, basis, scale);
   const instances = makeTileInstances(
-    displayList, mappedTiles, embedding[key].partLists, basis
+    displayList, mappedTiles, embedding[key].partLists, basis, true /* existEdges */
   );
-
+  
   return { meshes: embedding[key].subMeshes, instances };
 });
 
@@ -467,7 +467,7 @@ export const mapTiles = (tiles, basis, scale) => {
 };
 
 
-export const makeTileInstances = (displayList, tiles, partLists, basis) => {
+export const makeTileInstances = (displayList, tiles, partLists, basis, existEdges) => {
   const instances = [];
 
   for (let i = 0; i < displayList.length; ++i) {
@@ -479,9 +479,9 @@ export const makeTileInstances = (displayList, tiles, partLists, basis) => {
     for (let j = 0; j < parts.length; ++j) {
       if (skippedParts && skippedParts[j])
         continue;
-
+      
       instances.push({
-        meshType: (j < parts.length - 1) ? 'tileFace' : 'tileEdges',
+        meshType: (existEdges && j == parts.length - 1) ? 'tileEdges' : 'tileFace',
         meshIndex: parts[j],
         classIndex,
         latticeIndex,
