@@ -26,3 +26,7 @@ If that does not work, try starting a local web server on the `dist` directory, 
     (cd dist && python -m SimpleHTTPServer 8000)
 
 Then use the URL `localhost:8000` in the browser.
+
+To run the command line tool
+
+    node src/cli/cli.js -i "../3dt_dir/" -o "../output_dir/" -e "../error_dir" -t 24 -ms 10000
