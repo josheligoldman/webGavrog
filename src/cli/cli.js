@@ -60,10 +60,15 @@ const argv = yargs(hideBin(process.argv))
     description: 'Timeout per structure in milliseconds',
     default: 15000
   })
+  .option('type', {
+    type: 'string',
+    description: 'Type of tilings being processed. Options are `rcsr` or `zeolites`.',
+    default: 'rcsr'
+  })
   .help()
   .argv;
 
-const OPTIONS = { "xExtent3d": 1, "yExtent3d": 1, "zExtent3d": 1, "tileScale": 1 };
+const OPTIONS = { "xExtent3d": 1, "yExtent3d": 1, "zExtent3d": 1, "tileScale": 1, "type": argv.type };
 
 // ---------------------------------------------------------
 // WORKER POOL SETUP

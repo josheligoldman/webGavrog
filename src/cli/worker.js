@@ -11,6 +11,7 @@ const delaney = require('../dsymbols/delaney.js');
 const { handlers } = require('../ui/handlers.js');
 const { convertTile, makeTileDisplayList, makeTilingModelGeo, mapTiles, makeTileInstances } = require('../ui/makeScene.js');
 const { geometry, splitMeshes } = require('../ui/geometries.js');
+const { parseTilingFullName } = require('./utils.js');
 
 const preprocessCLI = (structure, options) => {
   const type = structure.type;
@@ -62,13 +63,13 @@ module.exports = async ({ block, options, id }) => {
   if (!structure.name) {
     throw new Error(`Structure ${id} is missing a name property`);
   };
-  const name = structure.name
+  const { tilingName, tilingType } = parseTilingFullName(structure.name, options);
 
   const data = preprocessCLI(structure, options);
   data.displayList = makeDisplayListCLI(data, options);
   const { basis, instances, meshes } = makeModelCLI(data, options);
 
-  return { name, basis, instances, meshes };
+  return { tilingName, tilingType, basis, instances, meshes };
   
 };
 
