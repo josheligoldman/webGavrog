@@ -5,26 +5,24 @@ export const parseTilingFullName = (full_name, options) => {
     throw new Error("Invalid format: Must have at least 4 non-empty sections.");
   }
 
-  // Strict ID Section Regex
-  // We use the exact phrase you provided, escaping the literal parentheses
-  const idRegex = /Structure prediction by ZEFSAII \(Michael W. Deem and Ramdas Pophale\) SiO2PCOD(\d+)Probable space group:/;
-
+  const fullTilingName = sections[0];
   let tilingName;
+
   if (options.type == "rcsr") {
-    tilingName = sections[0];
-    const strictRcsrRegex = /^[a-z]{3}(-[a-z])?(-[a-z])?$/;
-    if (!strictRcsrRegex.test(tilingName)) {
-      throw new Error(`Invalid RCSR Name: "${tilingName}". Does not match file convention.`);
+    const match = fullTilingName.match(/^([a-z-]+)\/Systre$/);
+    if (!match) {
+      throw new Error(`Invalid RCSR Name: "${fullTilingName}". Does not match file convention.`);
     }
+    tilingName = match[1];
+
   } else if (options.type == "zeolites") {
-    const idRegex = /Structure prediction by ZEFSAII \(Michael W. Deem and Ramdas Pophale\) SiO2PCOD(\d+)Probable space group:/;
-    const idMatch = sections[0].match(idRegex);
-    if (!idMatch) {
-        throw new Error("ID Section does not match the required ZEFSAII prefix or PCOD format.");
+    const match = fullTilingName.match(/Structure prediction by ZEFSAII \(Michael W. Deem and Ramdas Pophale\) SiO2PCOD(\d+)Probable space group:/);
+    if (!match) {
+        throw new Error(`ID Section does not match prefix. Full name: ${fullTilingName}`);
     }
-    tilingName = idMatch[1]; // Extracts the digits from (\d+)
+    tilingName = match[1];
   } else {
-    throw new Error(`Unknown type: ${options.type}. Expected "rcsr" or "zeolites".`);
+    throw new Error(`Unknown type: ${options.type}`);
   }
 
   // Strict Tiling Type Regex
