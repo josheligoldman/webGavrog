@@ -1,6 +1,4 @@
 // worker.js
-const { parentPort } = require('worker_threads');
-
 require('@babel/register')({
   presets: [['@babel/preset-env', { targets: { node: 'current' } }]],
   ignore: [/node_modules/]
@@ -8,68 +6,137 @@ require('@babel/register')({
 
 const cgd = require('../io/cgd.js');
 const delaney = require('../dsymbols/delaney.js');
+const props = require('../dsymbols/properties.js');
 const { handlers } = require('../ui/handlers.js');
-const { convertTile, makeTileDisplayList, makeTilingModelGeo, mapTiles, makeTileInstances } = require('../ui/makeScene.js');
-const { geometry, splitMeshes } = require('../ui/geometries.js');
+const { coordinateChangesQ: opsQ } = require('../geometry/types.js');
 const { parseTilingFullName } = require('./utils.js');
 
-const preprocessCLI = (structure, options) => {
-  const type = structure.type;
-  const ds = structure.symbol;
-  const dim = delaney.dim(ds);
+const asString = x => `${x}`;
+const serializeVector = v => (v || []).map(asString);
 
+const preprocessCLI = structure => {
+  const ds = structure.symbol;
   const cov = structure.cover || handlers.dsCover(ds);
   const skel = handlers.skeleton(cov);
-  const { orbitReps, centers, tiles: rawTiles } = handlers.tilesByTranslations({ ds, cov, skel });
-  const sgInfo = handlers.identifyGroupForTiling({ ds, cov, skel });
-  const tiles = rawTiles.map(tile => convertTile(tile, centers));
-  const embeddings = handlers.embedding(skel.graph);
-  return { type, dim, ds, cov, skel, sgInfo, tiles, orbitReps, embeddings };
+  return { ds, cov, skel };
 };
 
-const makeDisplayListCLI = (data, options) => {
-  const result = makeTileDisplayList(data, options);
-  return result;
+const makeChamberToCellMaps = cov => {
+  const size = delaney.size(cov);
+  const dim = delaney.dim(cov);
+  const indices = delaney.indices(cov);
+  const chambers = Array.from({ length: size }, (_, k) => k + 1);
+
+  const chamberToCellByRank = {};
+  const cellRepresentativeChamberByRank = {};
+
+  for (let i = 0; i <= dim; ++i) {
+    const rank = i + 1;
+    const orbitIndices = indices.filter(j => j !== i);
+    const orbits = props.orbits(cov, orbitIndices, delaney.elements(cov));
+
+    const map = new Array(size + 1).fill(0);
+    const reps = [];
+
+    for (let id = 0; id < orbits.length; ++id) {
+      const orb = orbits[id];
+      reps.push(orb[0]);
+      for (const D of orb)
+        map[D] = id + 1;
+    }
+
+    chamberToCellByRank[rank] = chambers.map(D => map[D]);
+    cellRepresentativeChamberByRank[rank] = reps;
+  }
+
+  return { chamberToCellByRank, cellRepresentativeChamberByRank };
 };
 
-const makeModelCLI = (data, options) => {
-  const { ds, cov, skel, tiles, orbitReps, embeddings, displayList } = data;
-  const { dim, embedding, basis } = makeTilingModelGeo(data, options);
+const zeroVec = n => opsQ.vector(n);
 
-  const { meshes: baseMeshes, scale } = handlers.makeTileMeshes(
-    { cov, skel, pos: embedding.positions, seeds: orbitReps, basis, subDLevel: 0 }
-  );
+const chamberShift = (skel, D, i, dim) =>
+  ((skel.cornerShifts[D] || [])[i]) || zeroVec(dim);
 
-  const meshes = baseMeshes.map(m => geometry(m.pos, m.faces));
-  const faceLabelLists = baseMeshes.map(m => m.faces.map((_, i) => i));
+const makeAdjacentIncidences = (cov, skel, chamberMaps) => {
+  const dim = delaney.dim(cov);
+  const size = delaney.size(cov);
+  const byPair = {};
+  const seen = {};
 
-  const { partLists, subMeshes } = splitMeshes(meshes, faceLabelLists);
+  const getCell = (rank, D) => chamberMaps.chamberToCellByRank[rank][D - 1];
 
-  const tileScale = options.tileScale || 1.0;
-  const mappedTiles = mapTiles(tiles, basis, tileScale);
+  for (let D = 1; D <= size; ++D) {
+    for (let childRank = 1; childRank <= dim; ++childRank) {
+      const parentRank = childRank + 1;
+      const childIdx = childRank - 1;
+      const parentIdx = parentRank - 1;
 
-  const instances = makeTileInstances(
-    displayList, mappedTiles, partLists, basis, false /* existEdges */
-  );
+      const child = getCell(childRank, D);
+      const parent = getCell(parentRank, D);
 
-  return { basis, instances, meshes: subMeshes };
+      const childShift = chamberShift(skel, D, childIdx, dim);
+      const parentShift = chamberShift(skel, D, parentIdx, dim);
+      const offset = serializeVector(opsQ.minus(childShift, parentShift));
+
+      const key = `${parentRank}|${parent}|${childRank}|${child}|${offset.join(',')}`;
+      if (!seen[key]) {
+        seen[key] = true;
+        const pairKey = `${parentRank}-${childRank}`;
+        if (!byPair[pairKey])
+          byPair[pairKey] = [];
+
+        byPair[pairKey].push({ parent, child, offset });
+      }
+    }
+  }
+
+  return byPair;
+};
+
+const makeTopologyPayload = (structure, parsedName, data) => {
+  const { tilingName, tilingType } = parsedName;
+  const { ds, cov, skel } = data;
+
+  const chamberMaps = makeChamberToCellMaps(cov);
+  const adjacentIncidences = makeAdjacentIncidences(cov, skel, chamberMaps);
+
+  return {
+    schemaVersion: 'topology-v2-compact',
+    tilingName,
+    tilingType,
+    sourceName: structure.name,
+    dim: delaney.dim(ds),
+    delaney: {
+      symbol: `${ds}`,
+      cover: `${cov}`,
+      symbolInvariant: props.invariant(ds).join(','),
+      coverInvariant: props.invariant(cov).join(',')
+    },
+    coverTopology: {
+      chamberCount: delaney.size(cov),
+      chamberToCellByRank: chamberMaps.chamberToCellByRank,
+      cellRepresentativeChamberByRank: chamberMaps.cellRepresentativeChamberByRank,
+      adjacentIncidences
+    }
+  };
 };
 
 module.exports = async ({ block, options, id }) => {
   const structure = cgd.processed(block);
-  if (!structure) {
+  if (!structure)
     throw new Error(`Structure ${id} failed to parse (returned null/undefined)`);
-  }
-  if (!structure.name) {
+  if (!structure.name)
     throw new Error(`Structure ${id} is missing a name property`);
-  };
-  const { tilingName, tilingType } = parseTilingFullName(structure.name, options);
 
-  const data = preprocessCLI(structure, options);
-  data.displayList = makeDisplayListCLI(data, options);
-  const { basis, instances, meshes } = makeModelCLI(data, options);
+  let parsedName;
+  try {
+    parsedName = parseTilingFullName(structure.name, options);
+  }
+  catch (_err) {
+    parsedName = { tilingName: structure.name, tilingType: 'UNKNOWN' };
+  }
 
-  return { tilingName, tilingType, basis, instances, meshes };
-  
+  const data = preprocessCLI(structure);
+  return makeTopologyPayload(structure, parsedName, data);
 };
 

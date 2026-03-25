@@ -11,12 +11,13 @@ fi
 
 source "$ENV_FILE"
 
-: "${DATA_DIR:?DATA_DIR is required in .env}"
-: "${LOG_DIR:?LOG_DIR is required in .env}"
+: "${TOPOS_DIR:?TOPOS_DIR is required in .env}"
+: "${OUTPUT_DIR:?OUTPUT_DIR is required in .env}"
+: "${ERROR_DIR:?ERROR_DIR is required in .env}"
 
-TOPOS_DIR="$DATA_DIR/topos"
-OUTPUT_DIR="$DATA_DIR/gavrogs"
-ERROR_DIR="$LOG_DIR/errors"
+TOPOS_DIR="$TOPOS_DIR"
+OUTPUT_DIR="$OUTPUT_DIR"
+ERROR_DIR="$ERROR_DIR"
 THREADS=24
 TIMEOUT=120000
 TYPE="zeolites"
