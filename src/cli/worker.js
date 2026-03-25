@@ -101,20 +101,10 @@ const makeTopologyPayload = (structure, parsedName, data) => {
   const adjacentIncidences = makeAdjacentIncidences(cov, skel, chamberMaps);
 
   return {
-    schemaVersion: 'topology-v2-compact',
     tilingName,
     tilingType,
-    sourceName: structure.name,
     dim: delaney.dim(ds),
-    delaney: {
-      symbol: `${ds}`,
-      cover: `${cov}`,
-      symbolInvariant: props.invariant(ds).join(','),
-      coverInvariant: props.invariant(cov).join(',')
-    },
     coverTopology: {
-      chamberCount: delaney.size(cov),
-      chamberToCellByRank: chamberMaps.chamberToCellByRank,
       cellRepresentativeChamberByRank: chamberMaps.cellRepresentativeChamberByRank,
       adjacentIncidences
     }
