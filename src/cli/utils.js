@@ -21,6 +21,13 @@ export const parseTilingFullName = (full_name, options) => {
         throw new Error(`ID Section does not match prefix. Full name: ${fullTilingName}`);
     }
     tilingName = match[1];
+  } else if (options.type == "iza") {
+    const match = fullTilingName.match(/^([a-zA-Z0-9]+)(?:\/|$)/);
+    
+    if (!match) {
+      throw new Error(`Invalid IZA Name: "${fullTilingName}". Could not parse prefix.`);
+    }
+    tilingName = match[1];
   } else {
     throw new Error(`Unknown type: ${options.type}`);
   }
