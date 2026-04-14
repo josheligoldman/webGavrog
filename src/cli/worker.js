@@ -57,7 +57,7 @@ const zeroVec = n => opsQ.vector(n);
 const chamberShift = (skel, D, i, dim) =>
   ((skel.cornerShifts[D] || [])[i]) || zeroVec(dim);
 
-const makeAdjacentIncidences = (cov, skel, chamberMaps) => {
+const makeAllIncidences = (cov, skel, chamberMaps) => {
   const dim = delaney.dim(cov);
   const size = delaney.size(cov);
   const byPair = {};
@@ -67,25 +67,26 @@ const makeAdjacentIncidences = (cov, skel, chamberMaps) => {
 
   for (let D = 1; D <= size; ++D) {
     for (let childRank = 1; childRank <= dim; ++childRank) {
-      const parentRank = childRank + 1;
-      const childIdx = childRank - 1;
-      const parentIdx = parentRank - 1;
+      for (let parentRank = childRank + 1; parentRank <= dim + 1; ++parentRank) {
+        const childIdx = childRank - 1;
+        const parentIdx = parentRank - 1;
 
-      const child = getCell(childRank, D);
-      const parent = getCell(parentRank, D);
+        const child = getCell(childRank, D);
+        const parent = getCell(parentRank, D);
 
-      const childShift = chamberShift(skel, D, childIdx, dim);
-      const parentShift = chamberShift(skel, D, parentIdx, dim);
-      const offset = serializeVector(opsQ.minus(childShift, parentShift));
+        const childShift = chamberShift(skel, D, childIdx, dim);
+        const parentShift = chamberShift(skel, D, parentIdx, dim);
+        const offset = serializeVector(opsQ.minus(childShift, parentShift));
 
-      const key = `${parentRank}|${parent}|${childRank}|${child}|${offset.join(',')}`;
-      if (!seen[key]) {
-        seen[key] = true;
-        const pairKey = `${parentRank}-${childRank}`;
-        if (!byPair[pairKey])
-          byPair[pairKey] = [];
+        const key = `${parentRank}|${parent}|${childRank}|${child}|${offset.join(',')}`;
+        if (!seen[key]) {
+          seen[key] = true;
+          const pairKey = `${parentRank}-${childRank}`;
+          if (!byPair[pairKey])
+            byPair[pairKey] = [];
 
-        byPair[pairKey].push({ parent, child, offset });
+          byPair[pairKey].push({ parent, child, offset });
+        }
       }
     }
   }
@@ -98,7 +99,7 @@ const makeTopologyPayload = (structure, parsedName, data) => {
   const { ds, cov, skel } = data;
 
   const chamberMaps = makeChamberToCellMaps(cov);
-  const adjacentIncidences = makeAdjacentIncidences(cov, skel, chamberMaps);
+  const allIncidences = makeAllIncidences(cov, skel, chamberMaps);
 
   return {
     tilingName,
@@ -106,7 +107,7 @@ const makeTopologyPayload = (structure, parsedName, data) => {
     dim: delaney.dim(ds),
     coverTopology: {
       cellRepresentativeChamberByRank: chamberMaps.cellRepresentativeChamberByRank,
-      adjacentIncidences
+      allIncidences
     }
   };
 };
@@ -125,6 +126,10 @@ module.exports = async ({ block, options, id }) => {
   catch (_err) {
     parsedName = { tilingName: structure.name, tilingType: 'UNKNOWN' };
   }
+
+  const { tilingType } = parsedName;
+  if (tilingType !== 'NT' && tilingType !== 'PPT 1')
+    return null;
 
   const data = preprocessCLI(structure);
   return makeTopologyPayload(structure, parsedName, data);

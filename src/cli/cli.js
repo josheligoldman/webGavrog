@@ -94,6 +94,7 @@ async function run() {
     let totalProcessed = 0;
     let totalErrors = 0;
     let totalTimeouts = 0;
+    let totalSkipped = 0;
 
     // Initial Report
     console.log(`\n=============================================`);
@@ -151,6 +152,7 @@ async function run() {
       totalProcessed += result.processed;
       totalErrors += result.errors;
       totalTimeouts += result.timeouts;
+      totalSkipped += result.skipped;
     }
 
     // Cleanup Worker Pool
@@ -158,7 +160,7 @@ async function run() {
 
     const jobEndTime = Date.now();
     const durationSeconds = (jobEndTime - jobStartTime) / 1000;
-    const totalSuccess = totalProcessed - totalErrors - totalTimeouts;
+    const totalSuccess = totalProcessed - totalErrors - totalTimeouts - totalSkipped;
 
     // Final Report
     console.log(`\n=============================================`);
@@ -166,6 +168,7 @@ async function run() {
     console.log(`Total Time:       ${durationSeconds.toFixed(2)}s`);
     console.log(`Total Structures: ${totalProcessed} (Input)`);
     console.log(`Total Success:    ${totalSuccess}`);
+    console.log(`Total Skipped:    ${totalSkipped}`);
     console.log(`Total Errors:     ${totalErrors}`);
     console.log(`Total Timeouts:   ${totalTimeouts}`);
     console.log(`Output Dir:       ${argv.output}`);
@@ -280,17 +283,18 @@ async function processSingleFile(filePath, fileIndex, totalFiles, startId, outpu
 
   console.log(`File has ${total} structure(s) to process.`);
 
-  if (total === 0) return { processed: 0, errors: 0, timeouts: 0 };
+  if (total === 0) return { processed: 0, errors: 0, timeouts: 0, skipped: 0 };
 
   const progressBar = new cliProgress.SingleBar({
-    format: '  Progress | {bar} | {percentage}% | {value}/{total} | ETA: {eta}s | S: {success} | E: {errors} | T: {timeouts}',
+    format: '  Progress | {bar} | {percentage}% | {value}/{total} | ETA: {eta}s | S: {success} | SK: {skipped} | E: {errors} | T: {timeouts}',
   }, cliProgress.Presets.shades_classic);
 
   let localErrors = 0;
   let localTimeouts = 0;
   let localSuccess = 0;
-  
-  progressBar.start(total, 0, { success: 0, errors: 0, timeouts: 0 });
+  let localSkipped = 0;
+
+  progressBar.start(total, 0, { success: 0, skipped: 0, errors: 0, timeouts: 0 });
 
   const runTask = async (block, index) => {
     const currentGlobalId = startId + index;
@@ -305,40 +309,44 @@ async function processSingleFile(filePath, fileIndex, totalFiles, startId, outpu
 
       const workerPromise = piscina.runTask({ block, options: OPTIONS, id: currentGlobalId });
       const res = await Promise.race([workerPromise, timeoutPromise]);
-      
-      outputStream.write(JSON.stringify(res) + '\n');
-      
-      localSuccess++;
+
+      if (res === null) {
+        localSkipped++;
+      } else {
+        outputStream.write(JSON.stringify(res) + '\n');
+        localSuccess++;
+      }
       return res;
 
     } catch (err) {
       const isTimeout = err instanceof TimeoutError;
-      
+
       if (isTimeout) {
         localTimeouts++;
       } else {
         localErrors++;
       }
-      
-      const errorLog = { 
-        id: currentGlobalId, 
+
+      const errorLog = {
+        id: currentGlobalId,
         file: fileName,
         localIndex: index,
         type: isTimeout ? 'TIMEOUT' : 'ERROR',
-        error: err.message, 
-        success: false 
+        error: err.message,
+        success: false
       };
-      
+
       errorStream.write(JSON.stringify(errorLog) + '\n');
       return errorLog;
 
     } finally {
       if (timer) clearTimeout(timer);
-      
-      progressBar.increment(1, { 
+
+      progressBar.increment(1, {
         success: localSuccess,
-        errors: localErrors, 
-        timeouts: localTimeouts, 
+        skipped: localSkipped,
+        errors: localErrors,
+        timeouts: localTimeouts,
       });
     }
   };
@@ -347,7 +355,7 @@ async function processSingleFile(filePath, fileIndex, totalFiles, startId, outpu
 
   progressBar.stop();
 
-  return { processed: total, errors: localErrors, timeouts: localTimeouts };
+  return { processed: total, errors: localErrors, timeouts: localTimeouts, skipped: localSkipped };
 }
 
 run();
