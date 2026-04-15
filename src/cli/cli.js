@@ -125,12 +125,13 @@ async function run() {
     }
 
     const remainingFiles = filesToProcess.filter(f => !completedFiles.has(f));
+    const alreadyDoneCount = completedFiles.size;
     console.log(`Found ${filesToProcess.length} file(s) total, ${remainingFiles.length} to process.`);
 
     // Process Loop
     for (let i = 0; i < remainingFiles.length; i++) {
       const currentFile = remainingFiles[i];
-      const fileNum = completedFiles.size + i + 1;
+      const fileNum = alreadyDoneCount + i + 1;
       const fileCount = filesToProcess.length;
 
       console.log(`---------------------------------------------`);
@@ -341,10 +342,11 @@ async function processSingleFile(filePath, fileIndex, totalFiles, startId, outpu
       if (res === null) {
         localSkipped++;
       } else {
-        outputStream.write(JSON.stringify(res) + '\n');
+        if (!outputStream.write(JSON.stringify(res) + '\n')) {
+          await new Promise(r => outputStream.once('drain', r));
+        }
         localSuccess++;
       }
-      return res;
 
     } catch (err) {
       const isTimeout = err instanceof TimeoutError;
@@ -364,8 +366,9 @@ async function processSingleFile(filePath, fileIndex, totalFiles, startId, outpu
         success: false
       };
 
-      errorStream.write(JSON.stringify(errorLog) + '\n');
-      return errorLog;
+      if (!errorStream.write(JSON.stringify(errorLog) + '\n')) {
+        await new Promise(r => errorStream.once('drain', r));
+      }
 
     } finally {
       if (timer) clearTimeout(timer);
