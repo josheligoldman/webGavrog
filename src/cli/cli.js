@@ -44,12 +44,6 @@ const argv = yargs(hideBin(process.argv))
     description: 'Path to Output Directory',
     default: 'output_dir'
   })
-  .option('errors', {
-    alias: 'e',
-    type: 'string',
-    description: 'Path to Error Directory',
-    default: 'error_dir'
-  })
   .option('threads', {
     type: 'number',
     description: 'Number of worker threads',
@@ -64,6 +58,12 @@ const argv = yargs(hideBin(process.argv))
     type: 'string',
     description: 'Type of tilings being processed. Options are `rcsr` or `zeolites`.',
     default: 'rcsr'
+  })
+  .option('log', {
+    alias: 'l',
+    type: 'string',
+    description: 'Directory for log/checkpoint files',
+    demandOption: true,
   })
   .help()
   .argv;
@@ -85,9 +85,11 @@ async function run() {
   const jobStartTime = Date.now();
 
   try {
+    const errorsDir = path.join(argv.log, 'errors');
+
     // Analyze & Setup Directories
-    // This enforces that output/errors are dirs and all paths are unique
-    setupDirectories(argv.input, argv.output, argv.errors);
+    // This enforces that output/log/errors are dirs and all paths are unique
+    setupDirectories(argv.input, argv.output, argv.log, errorsDir);
 
     // Initialize global counters
     let globalIdCounter = 0;
@@ -100,19 +102,35 @@ async function run() {
     console.log(`\n=============================================`);
     console.log("Input Path:      ", argv.input);
     console.log("Output Directory:", argv.output);
-    console.log("Error Directory: ", argv.errors);
+    console.log("Error Directory: ", errorsDir);
+    console.log("Log Directory:   ", argv.log);
     console.log("Threads:         ", argv.threads);
     console.log("Timeout (ms):    ", argv.timeout);
     console.log(`=============================================\n`);
 
     // Get Files List
     const filesToProcess = getFilesToProcess(argv.input);
-    console.log(`Found ${filesToProcess.length} file(s) to process.`);
+
+    // Load checkpoint (resume support)
+    const CHECKPOINT_FILE = path.join(argv.log, 'checkpoint.json');
+    let completedFiles = new Set();
+    if (fs.existsSync(CHECKPOINT_FILE)) {
+      try {
+        const data = JSON.parse(fs.readFileSync(CHECKPOINT_FILE, 'utf8'));
+        completedFiles = new Set(data.completed || []);
+        console.log(`Resuming: ${completedFiles.size} file(s) already done, skipping.`);
+      } catch {
+        console.warn(`Warning: Could not read checkpoint file — starting fresh.`);
+      }
+    }
+
+    const remainingFiles = filesToProcess.filter(f => !completedFiles.has(f));
+    console.log(`Found ${filesToProcess.length} file(s) total, ${remainingFiles.length} to process.`);
 
     // Process Loop
-    for (let i = 0; i < filesToProcess.length; i++) {
-      const currentFile = filesToProcess[i];
-      const fileNum = i + 1;
+    for (let i = 0; i < remainingFiles.length; i++) {
+      const currentFile = remainingFiles[i];
+      const fileNum = completedFiles.size + i + 1;
       const fileCount = filesToProcess.length;
 
       console.log(`---------------------------------------------`);
@@ -124,7 +142,7 @@ async function run() {
       const fname = inputBaseName.replace(/[._-]?3dt\.cgd$/i, ''); 
       
       const currentOutputPath = path.join(argv.output, `${fname}.jsonl`);
-      const currentErrorPath = path.join(argv.errors, `${fname}.jsonl`);
+      const currentErrorPath = path.join(errorsDir, `${fname}.jsonl`);
 
       console.log(`Processing file ${fileNum} of ${fileCount}: ${inputBaseName}`);
       console.log(`   > Output: ${currentOutputPath}`);
@@ -147,6 +165,10 @@ async function run() {
       await new Promise(r => outputStream.end(r));
       await new Promise(r => errorStream.end(r));
 
+      // Write checkpoint
+      completedFiles.add(currentFile);
+      fs.writeFileSync(CHECKPOINT_FILE, JSON.stringify({ completed: [...completedFiles] }, null, 2));
+
       // Aggregate results
       globalIdCounter += result.processed;
       totalProcessed += result.processed;
@@ -162,6 +184,9 @@ async function run() {
     const durationSeconds = (jobEndTime - jobStartTime) / 1000;
     const totalSuccess = totalProcessed - totalErrors - totalTimeouts - totalSkipped;
 
+    // Clean up checkpoint — job completed successfully
+    if (fs.existsSync(CHECKPOINT_FILE)) fs.unlinkSync(CHECKPOINT_FILE);
+
     // Final Report
     console.log(`\n=============================================`);
     console.log(`Job Complete.`);
@@ -172,7 +197,7 @@ async function run() {
     console.log(`Total Errors:     ${totalErrors}`);
     console.log(`Total Timeouts:   ${totalTimeouts}`);
     console.log(`Output Dir:       ${argv.output}`);
-    console.log(`Error Dir:        ${argv.errors}`);
+    console.log(`Error Dir:        ${errorsDir}`);
     console.log(`=============================================`);
 
   } catch (error) {
@@ -196,7 +221,7 @@ const ensureDir = (dirPath) => {
 // ---------------------------------------------------------
 // HELPER: Setup and Validate Directories
 // ---------------------------------------------------------
-function setupDirectories(inputPath, outputDir, errorDir) {
+function setupDirectories(inputPath, outputDir, logDir, errorDir) {
     if (!fs.existsSync(inputPath)) {
         console.error(`Error: Input path not found at ${inputPath}`);
         process.exit(1);
@@ -212,14 +237,16 @@ function setupDirectories(inputPath, outputDir, errorDir) {
         inputContextDir = path.resolve(path.dirname(inputPath));
     }
 
-    // Resolve Output and Error Dirs
+    // Resolve Output, Log, and Error Dirs
     const absOutputDir = path.resolve(outputDir);
+    const absLogDir = path.resolve(logDir);
     const absErrorDir = path.resolve(errorDir);
 
     // Strict Uniqueness Check
     const pathsToCheck = [
         { label: 'Input Context',    path: inputContextDir },
         { label: 'Output Directory', path: absOutputDir },
+        { label: 'Log Directory',    path: absLogDir },
         { label: 'Error Directory',  path: absErrorDir }
     ];
 
@@ -240,6 +267,7 @@ function setupDirectories(inputPath, outputDir, errorDir) {
 
     // Ensure Directories Exist
     ensureDir(absOutputDir);
+    ensureDir(absLogDir);
     ensureDir(absErrorDir);
 }
 

@@ -13,19 +13,19 @@ source "$ENV_FILE"
 
 : "${TOPOS_DIR:?TOPOS_DIR is required in .env}"
 : "${OUTPUT_DIR:?OUTPUT_DIR is required in .env}"
-: "${ERROR_DIR:?ERROR_DIR is required in .env}"
+: "${LOG_DIR:?LOG_DIR is required in .env}"
 
 TOPOS_DIR="$TOPOS_DIR"
 OUTPUT_DIR="$OUTPUT_DIR"
-ERROR_DIR="$ERROR_DIR"
-THREADS=24
+LOG_DIR="$LOG_DIR"
+THREADS=4
 TIMEOUT=120000
-TYPE="zeolites"
+TYPE="iza"
 
 node src/cli/cli.js \
   -i "$TOPOS_DIR" \
   -o "$OUTPUT_DIR" \
-  -e "$ERROR_DIR" \
+  -l "$LOG_DIR" \
   --threads "$THREADS" \
   --timeout "$TIMEOUT" \
   --type "$TYPE"
