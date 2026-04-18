@@ -6,6 +6,7 @@ require('@babel/register')({
 
 const cgd = require('../io/cgd.js');
 const delaney = require('../dsymbols/delaney.js');
+const derived = require('../dsymbols/derived.js');
 const props = require('../dsymbols/properties.js');
 const { handlers } = require('../ui/handlers.js');
 const { coordinateChangesQ: opsQ } = require('../geometry/types.js');
@@ -101,13 +102,22 @@ const makeTopologyPayload = (structure, parsedName, data) => {
   const chamberMaps = makeChamberToCellMaps(cov);
   const allIncidences = makeAllIncidences(cov, skel, chamberMaps);
 
+  const dim = delaney.dim(cov);
+  const tileRank = dim + 1;
+  const tileIndices = Array.from({ length: dim }, (_, k) => k);
+  const tileReps = chamberMaps.cellRepresentativeChamberByRank[tileRank];
+  const tileSignatures = tileReps.map(rep =>
+    props.invariant(derived.subsymbol(cov, tileIndices, rep)).join(',')
+  );
+
   return {
     tilingName,
     tilingType,
     dim: delaney.dim(ds),
     coverTopology: {
       cellRepresentativeChamberByRank: chamberMaps.cellRepresentativeChamberByRank,
-      allIncidences
+      allIncidences,
+      tileSignatures
     }
   };
 };
