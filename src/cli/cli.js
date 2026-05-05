@@ -97,6 +97,7 @@ async function run() {
     let totalErrors = 0;
     let totalTimeouts = 0;
     let totalSkipped = 0;
+    let totalNonOrientable = 0;
 
     // Initial Report
     console.log(`\n=============================================`);
@@ -176,6 +177,7 @@ async function run() {
       totalErrors += result.errors;
       totalTimeouts += result.timeouts;
       totalSkipped += result.skipped;
+      totalNonOrientable += result.nonOrientable;
     }
 
     // Cleanup Worker Pool
@@ -183,7 +185,7 @@ async function run() {
 
     const jobEndTime = Date.now();
     const durationSeconds = (jobEndTime - jobStartTime) / 1000;
-    const totalSuccess = totalProcessed - totalErrors - totalTimeouts - totalSkipped;
+    const totalSuccess = totalProcessed - totalErrors - totalTimeouts - totalSkipped - totalNonOrientable;
 
     // Clean up checkpoint — job completed successfully
     if (fs.existsSync(CHECKPOINT_FILE)) fs.unlinkSync(CHECKPOINT_FILE);
@@ -197,6 +199,7 @@ async function run() {
     console.log(`Total Skipped:    ${totalSkipped}`);
     console.log(`Total Errors:     ${totalErrors}`);
     console.log(`Total Timeouts:   ${totalTimeouts}`);
+    console.log(`Total Non-Orient: ${totalNonOrientable}`);
     console.log(`Output Dir:       ${argv.output}`);
     console.log(`Error Dir:        ${errorsDir}`);
     console.log(`=============================================`);
@@ -312,18 +315,19 @@ async function processSingleFile(filePath, fileIndex, totalFiles, startId, outpu
 
   console.log(`File has ${total} structure(s) to process.`);
 
-  if (total === 0) return { processed: 0, errors: 0, timeouts: 0, skipped: 0 };
+  if (total === 0) return { processed: 0, errors: 0, timeouts: 0, skipped: 0, nonOrientable: 0 };
 
   const progressBar = new cliProgress.SingleBar({
-    format: '  Progress | {bar} | {percentage}% | {value}/{total} | ETA: {eta}s | S: {success} | SK: {skipped} | E: {errors} | T: {timeouts}',
+    format: '  Progress | {bar} | {percentage}% | {value}/{total} | ETA: {eta}s | S: {success} | SK: {skipped} | E: {errors} | T: {timeouts} | NO: {nonOrientable}',
   }, cliProgress.Presets.shades_classic);
 
   let localErrors = 0;
   let localTimeouts = 0;
   let localSuccess = 0;
   let localSkipped = 0;
+  let localNonOrientable = 0;
 
-  progressBar.start(total, 0, { success: 0, skipped: 0, errors: 0, timeouts: 0 });
+  progressBar.start(total, 0, { success: 0, skipped: 0, errors: 0, timeouts: 0, nonOrientable: 0 });
 
   const runTask = async (block, index) => {
     const currentGlobalId = startId + index;
@@ -350,18 +354,25 @@ async function processSingleFile(filePath, fileIndex, totalFiles, startId, outpu
 
     } catch (err) {
       const isTimeout = err instanceof TimeoutError;
+      const isNonOrientable = err && err.name === 'NonOrientableError';
 
-      if (isTimeout) {
+      let errorType;
+      if (isNonOrientable) {
+        localNonOrientable++;
+        errorType = 'NON_ORIENTABLE';
+      } else if (isTimeout) {
         localTimeouts++;
+        errorType = 'TIMEOUT';
       } else {
         localErrors++;
+        errorType = 'ERROR';
       }
 
       const errorLog = {
         id: currentGlobalId,
         file: fileName,
         localIndex: index,
-        type: isTimeout ? 'TIMEOUT' : 'ERROR',
+        type: errorType,
         error: err.message,
         success: false
       };
@@ -378,6 +389,7 @@ async function processSingleFile(filePath, fileIndex, totalFiles, startId, outpu
         skipped: localSkipped,
         errors: localErrors,
         timeouts: localTimeouts,
+        nonOrientable: localNonOrientable,
       });
     }
   };
@@ -386,7 +398,7 @@ async function processSingleFile(filePath, fileIndex, totalFiles, startId, outpu
 
   progressBar.stop();
 
-  return { processed: total, errors: localErrors, timeouts: localTimeouts, skipped: localSkipped };
+  return { processed: total, errors: localErrors, timeouts: localTimeouts, skipped: localSkipped, nonOrientable: localNonOrientable };
 }
 
 run();

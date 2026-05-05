@@ -18,9 +18,9 @@ source "$ENV_FILE"
 TOPOS_DIR="$TOPOS_DIR"
 OUTPUT_DIR="$OUTPUT_DIR"
 LOG_DIR="$LOG_DIR"
-THREADS=24
+THREADS=18
 TIMEOUT=120000
-TYPE="zeolites"
+TYPE="rcsr"
 
 node src/cli/cli.js \
   -i "$TOPOS_DIR" \

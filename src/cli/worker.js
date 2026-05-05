@@ -12,6 +12,13 @@ const { handlers } = require('../ui/handlers.js');
 const { coordinateChangesQ: opsQ } = require('../geometry/types.js');
 const { parseTilingFullName } = require('./utils.js');
 
+class NonOrientableError extends Error {
+  constructor(message = 'Non-orientable cover; cannot emit orientation data.') {
+    super(message);
+    this.name = 'NonOrientableError';
+  }
+}
+
 const asString = x => `${x}`;
 const serializeVector = v => (v || []).map(asString);
 
@@ -58,6 +65,17 @@ const zeroVec = n => opsQ.vector(n);
 const chamberShift = (skel, D, i, dim) =>
   ((skel.cornerShifts[D] || [])[i]) || zeroVec(dim);
 
+const intVec = (v, dim, ctx) => {
+  const out = new Array(dim);
+  for (let k = 0; k < dim; ++k) {
+    const c = v[k];
+    if (!opsQ.isInteger(c))
+      throw new Error(`Non-integer cornerShift component at ${ctx}: ${v}`);
+    out[k] = opsQ.toJS(c);
+  }
+  return out;
+};
+
 const makeAllIncidences = (cov, skel, chamberMaps) => {
   const dim = delaney.dim(cov);
   const size = delaney.size(cov);
@@ -99,7 +117,32 @@ const makeTopologyPayload = (structure, parsedName, data) => {
   const { tilingName, tilingType } = parsedName;
   const { ds, cov, skel } = data;
 
+  if (!props.isOriented(cov))
+    throw new NonOrientableError();
+
   const chamberMaps = makeChamberToCellMaps(cov);
+
+  const ori = props.partialOrientation(cov);
+  const chamberCount = delaney.size(cov);
+  const indices = delaney.indices(cov);
+  const dimCov = delaney.dim(cov);
+
+  const chamberOrientations = Array.from(
+    { length: chamberCount }, (_, k) => ori[k + 1]
+  );
+
+  const sigmaNeighbors = {};
+  const chamberCornerShifts = {};
+  for (const i of indices) {
+    sigmaNeighbors[i] = Array.from(
+      { length: chamberCount }, (_, k) => cov.s(i, k + 1)
+    );
+    chamberCornerShifts[i] = Array.from(
+      { length: chamberCount },
+      (_, k) => intVec(chamberShift(skel, k + 1, i, dimCov), dimCov, `D=${k+1},i=${i}`)
+    );
+  }
+
   const allIncidences = makeAllIncidences(cov, skel, chamberMaps);
 
   const dim = delaney.dim(cov);
@@ -117,7 +160,12 @@ const makeTopologyPayload = (structure, parsedName, data) => {
     coverTopology: {
       cellRepresentativeChamberByRank: chamberMaps.cellRepresentativeChamberByRank,
       allIncidences,
-      tileSignatures
+      tileSignatures,
+      chamberCount,
+      chamberOrientations,
+      sigmaNeighbors,
+      chamberToCellByRank: chamberMaps.chamberToCellByRank,
+      chamberCornerShifts
     }
   };
 };
